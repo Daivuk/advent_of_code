@@ -31,3 +31,7 @@ add_subdirectory(./2020/10)
 add_subdirectory(./2021/1)
 add_subdirectory(./2021/2)
 add_subdirectory(./2021/3)
+
+add_subdirectory(./2023/1)
+add_subdirectory(./2023/2)
+add_subdirectory(./2023/3)
