@@ -7,18 +7,6 @@ struct card_t
 };
 
 
-static vector<int> parse_numbers(const string& str)
-{
-    auto splits = onut::splitString(str, ' ');
-    vector<int> ret;
-    for (const auto& split : splits)
-    {
-        ret.push_back(stoi(split));
-    }
-    return ret;
-}
-
-
 static vector<card_t> parse_cards(const vector<string>& data)
 {
     vector<card_t> cards;
@@ -28,8 +16,8 @@ static vector<card_t> parse_cards(const vector<string>& data)
         card_t card;
 
         auto splits = onut::splitString(onut::splitString(line, ':')[1], '|');
-        vector<int> winning_numbers = parse_numbers(splits[0]);
-        vector<int> my_numbers = parse_numbers(splits[1]);
+        vector<int64_t> winning_numbers = parse_numbers(splits[0]);
+        vector<int64_t> my_numbers = parse_numbers(splits[1]);
 
         for (auto number : my_numbers)
         {
@@ -44,9 +32,9 @@ static vector<card_t> parse_cards(const vector<string>& data)
 }
 
 
-int calculate_part1(const vector<string>& data)
+int64_t calculate_part1(const vector<string>& data)
 {
-    int result = 0;
+    int64_t result = 0;
 
     vector<card_t> cards = parse_cards(data);
     for (const auto& card : cards)
@@ -59,9 +47,9 @@ int calculate_part1(const vector<string>& data)
 }
 
 
-static int get_instance_count(int index, card_t& card, vector<card_t>& cards)
+static int64_t get_instance_count(int index, card_t& card, vector<card_t>& cards)
 {
-    int ret = 1; // Include self
+    int64_t ret = 1; // Include self
 
     for (int i = index + 1; i < index + 1 + card.win_count && i < (int)cards.size(); ++i)
     {
@@ -72,9 +60,9 @@ static int get_instance_count(int index, card_t& card, vector<card_t>& cards)
 }
 
 
-int calculate_part2(const vector<string>& data)
+int64_t calculate_part2(const vector<string>& data)
 {
-    int result = 0;
+    int64_t result = 0;
 
     vector<card_t> cards = parse_cards(data);
     for (int i = 0; i < (int)cards.size(); ++i)
