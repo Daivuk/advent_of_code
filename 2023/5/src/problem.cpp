@@ -87,8 +87,9 @@ static shared_ptr<map_t> parse_maps(const vector<string>& data)
 }
 
 
-int64_t calculate_part1(const vector<string>& data)
+int64_t calculate_part1(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     vector<int64_t> seeds = parse_numbers(onut::splitString(data[0], ':')[1]);
@@ -106,9 +107,10 @@ int64_t calculate_part1(const vector<string>& data)
 }
 
 
-#if 0 // Lets brute force it for now. takes about a minute and half
-int64_t calculate_part2(const vector<string>& data)
+#if 1 // Lets brute force it for now. takes about a minute and half
+int64_t calculate_part2(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     vector<int64_t> seed_ranges = parse_numbers(onut::splitString(data[0], ':')[1]);
@@ -124,14 +126,14 @@ int64_t calculate_part2(const vector<string>& data)
     atomic<int64_t> computed = 0;
     for (int i = 0; i < (int)seed_ranges.size(); i += 2)
     {
-        workers.push_back(async(launch::async, [root, &computed, seed_count](int64_t start, int64_t count) -> int64_t
+        workers.push_back(async(launch::async, [root, &computed, seed_count, puzzle](int64_t start, int64_t count) -> int64_t
         {
             int64_t lowest = numeric_limits<int64_t>::max();
             for (int64_t seed = start; seed < start + count; ++seed)
             {
                 auto loc_id = get_location(seed, root);
                 lowest = min(loc_id, lowest);
-                sub_progress2 = (float)((double)(++computed) / (double)seed_count);
+                puzzle->progress = (float)((double)(++computed) / (double)seed_count);
             }
             return lowest;
         }, seed_ranges[i], seed_ranges[i + 1]));
@@ -149,7 +151,7 @@ int64_t calculate_part2(const vector<string>& data)
 #endif
 
 
-#if 1
+#if 0
 struct block_t
 {
     int64_t start;
@@ -202,8 +204,9 @@ void add_range(vector<block_t>& blocks, const range_t& range)
 }
 
 
-int64_t calculate_part2(const vector<string>& data)
+int64_t calculate_part2(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     vector<int64_t> seed_ranges = parse_numbers(onut::splitString(data[0], ':')[1]);

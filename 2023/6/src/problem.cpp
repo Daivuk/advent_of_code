@@ -44,8 +44,9 @@ vector<race_t> parse_races2(const vector<string>& data)
 }
 
 
-int64_t calculate_part1(const vector<string>& data)
+int64_t calculate_part1(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 1;
 
     auto races = parse_races(data);
@@ -68,8 +69,9 @@ int64_t calculate_part1(const vector<string>& data)
 }
 
 
-int64_t calculate_part2(const vector<string>& data)
+int64_t calculate_part2(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 1;
 
     auto races = parse_races2(data);

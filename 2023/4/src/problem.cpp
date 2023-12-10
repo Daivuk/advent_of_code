@@ -32,8 +32,9 @@ static vector<card_t> parse_cards(const vector<string>& data)
 }
 
 
-int64_t calculate_part1(const vector<string>& data)
+int64_t calculate_part1(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     vector<card_t> cards = parse_cards(data);
@@ -60,8 +61,9 @@ static int64_t get_instance_count(int index, card_t& card, vector<card_t>& cards
 }
 
 
-int64_t calculate_part2(const vector<string>& data)
+int64_t calculate_part2(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     vector<card_t> cards = parse_cards(data);

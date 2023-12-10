@@ -10,8 +10,9 @@ struct ghost_t
 };
 
 
-int64_t calculate_part2(const vector<string>& data)
+int64_t calculate_part2(puzzle_t* puzzle)
 {
+    const auto& data = puzzle->data;
     int64_t result = 0;
 
     // Parse

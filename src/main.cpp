@@ -4,6 +4,18 @@
 #include <onut/Settings.h>
 #include <onut/Strings.h>
 #include <onut/Texture.h>
+#include "main.h"
+
+
+atomic<int> calculated_count = 0;
+mutex calculated_count_mutex;
+vector<puzzle_t*> puzzles;
+
+int64_t calculate_part1(puzzle_t* puzzle);
+int64_t calculate_part2(puzzle_t* puzzle);
+
+int64_t (*calculate_part_fns[])(puzzle_t* puzzle) = { nullptr, calculate_part1, calculate_part2 };
+
 
 void initSettings()
 {
@@ -14,77 +26,38 @@ void initSettings()
     oSettings->setShowOnScreenLog(true);
 }
 
+
 void shutdown()
 {
+    for (auto puzzle : puzzles)
+    {
+        delete puzzle;
+    }
 }
+
 
 void update()
 {
 }
+
 
 void render()
 {
     oRenderer->clear(Color::Black);
 }
 
+
 void postRender()
 {
 }
 
 
-#include <chrono>
-#include <future>
-#include <vector>
-#include <string>
-#include <sstream>
-#include <map>
-#include <set>
-#include <onut/Async.h>
-#include <onut/Files.h>
-#include <onut/Dispatcher.h>
-#include <onut/Point.h>
-#include <onut/Crypto.h>
-
-
-using namespace std;
-using namespace chrono_literals;
-
-
-atomic<int> calculated_count = 0;
-mutex calculated_count_mutex;
-atomic<float> sub_progress1 = 0.0f;
-atomic<float> sub_progress2 = 0.0f;
-
-vector<string> test_data1;
-vector<string> test_data2;
-vector<string> puzzle_data;
-
-int64_t test_result1 = -1;
-int64_t test_result2 = -1;
-int64_t result1 = -1;
-int64_t result2 = -1;
-
-using duration_t = decltype(chrono::steady_clock::now() - chrono::steady_clock::now());
-
-duration_t test_data1_parsing_duration;
-duration_t test_data2_parsing_duration;
-duration_t puzzle_data_loading_duration;
-duration_t test1_duration;
-duration_t part1_duration;
-duration_t test2_duration;
-duration_t part2_duration;
-
-
-int64_t calculate_part1(const vector<string>& data);
-int64_t calculate_part2(const vector<string>& data);
-
-
-vector<string> load_data(const string& in_filename, duration_t* time_took)
+void load_data(puzzle_t* puzzle)
 {
     auto time_start = chrono::steady_clock::now();
 
     // Load content
-    auto filename = oContentManager->findResourceFile(in_filename);
+    auto filename = puzzle->data_filename;
     auto raw_data = onut::getFileData(filename);
     string data_string;
     data_string.resize(raw_data.size());
@@ -93,21 +66,20 @@ vector<string> load_data(const string& in_filename, duration_t* time_took)
     onut::replace(data_string, "\r", "");
 
     // Split lines
-    auto ret = onut::splitString(data_string, '\n', false);
+    puzzle->data = onut::splitString(data_string, '\n', false);
 
     auto time_end = chrono::steady_clock::now();
-    *time_took = time_end - time_start;
-
-    return ret;
+    puzzle->data_parsing_duration = time_end - time_start;
 }
 
 
-void calculate_worker(int64_t (*calculate_fn)(const vector<string>& data), const vector<string>& data, int64_t* result, duration_t* time_took)
+void calculate_worker(int64_t (*calculate_fn)(puzzle_t* puzzle), puzzle_t* puzzle)
 {
     auto time_start = chrono::steady_clock::now();
-    *result = calculate_fn(data);
+    puzzle->result = calculate_fn(puzzle);
+    puzzle->progress = 1.0f;
     auto time_end = chrono::steady_clock::now();
-    *time_took = time_end - time_start;
+    puzzle->duration = time_end - time_start;
 
     calculated_count++;
 }
@@ -115,37 +87,79 @@ void calculate_worker(int64_t (*calculate_fn)(const vector<string>& data), const
 
 void start_calculations()
 {
-    thread{calculate_worker, calculate_part1, test_data1, &test_result1, &test1_duration}.detach();
-    thread{calculate_worker, calculate_part1, puzzle_data, &result1, &part1_duration}.detach();
-    thread{calculate_worker, calculate_part2, test_data2, &test_result2, &test2_duration}.detach();
-    thread{calculate_worker, calculate_part2, puzzle_data, &result2, &part2_duration}.detach();
+    for (auto puzzle : puzzles)
+        thread{calculate_worker, calculate_part_fns[puzzle->part], puzzle}.detach();
 }
 
 
-void load_data_worker(const string& filename, vector<string>* data, duration_t* time_took)
+void load_data_worker(puzzle_t* puzzle)
 {
-    *data = load_data(filename, time_took);
+    load_data(puzzle);
 
     bool should_start_calculations = false;
     calculated_count_mutex.lock();
     calculated_count++;
-    if (calculated_count == 3) should_start_calculations = true;
+    if (calculated_count == (int)puzzles.size()) should_start_calculations = true;
     calculated_count_mutex.unlock();
-    if (should_start_calculations) start_calculations();
+    if (should_start_calculations)
+    {
+        start_calculations();
+    }
 }
 
 
-void load_all_data()
+void create_tests(int part)
 {
-    thread{load_data_worker, "test_data1.txt", &test_data1, &test_data1_parsing_duration}.detach();
-    thread{load_data_worker, "test_data2.txt", &test_data2, &test_data2_parsing_duration}.detach();
-    thread{load_data_worker, "puzzle_data.txt", &puzzle_data, &puzzle_data_loading_duration}.detach();
+    // Setup puzzles and tests
+    if (onut::fileExists("assets/test_data" + to_string(part) + ".txt"))
+    {
+        puzzle_t* puzzle = new puzzle_t();
+        puzzle->is_test = true;
+        puzzle->data_filename = "assets/test_data" + to_string(part) + ".txt";
+        puzzle->part = part;
+        puzzle->name = "Part " + to_string(part) + " test";
+        puzzles.push_back(puzzle);
+    }
+    else if (onut::fileExists("assets/test_data" + to_string(part) + ".1.txt"))
+    {
+        int i = 1;
+        while (onut::fileExists("assets/test_data" + to_string(part) + "." + to_string(i) + ".txt"))
+        {
+            puzzle_t* puzzle = new puzzle_t();
+            puzzle->is_test = true;
+            puzzle->data_filename = "assets/test_data" + to_string(part) + "." + to_string(i) + ".txt";
+            puzzle->part = part;
+            puzzle->name = "Part " + to_string(part) + " test " + to_string(i);
+            puzzles.push_back(puzzle);
+            ++i;
+        }
+    }
+}
+
+
+void create_puzzle(int part)
+{
+    puzzle_t* puzzle = new puzzle_t();
+    puzzle->is_test = true;
+    puzzle->data_filename = "assets/puzzle_data.txt";
+    puzzle->part = part;
+    puzzle->name = "Part " + to_string(part);
+    puzzles.push_back(puzzle);
 }
 
 
 void init()
 {
-    load_all_data();
+    // Create puzzles
+    create_tests(1);
+    create_puzzle(1);
+
+    create_tests(2);
+    create_puzzle(2);
+
+    // Load data
+    for (auto puzzle : puzzles)
+        thread{load_data_worker, puzzle}.detach();
 }
 
 
@@ -180,56 +194,20 @@ void renderUI()
 {
     ImGui::Begin("Result");
 
-    if (calculated_count < 7)
+    for (const auto puzzle : puzzles)
     {
-        static const char CS[] = { '/', '-', '\\', '|' };
-        static auto start_time = chrono::steady_clock::now();
-
-        auto elapsed = chrono::steady_clock::now() - start_time;
-        auto frame_passed = elapsed / chrono::milliseconds(100);
-
-        ImGui::Text("Calculating... %c", CS[frame_passed % 4]);
-        ImGui::ProgressBar((float)calculated_count / 7.0f);
-        ImGui::ProgressBar((float)sub_progress1);
-        ImGui::ProgressBar((float)sub_progress2);
-    }
-    else
-    {
-        ImGui::Text("Loading Puzzle data took %s", duration_to_string(puzzle_data_loading_duration).c_str());
-        if (ImGui::CollapsingHeader("Part 1", ImGuiTreeNodeFlags_DefaultOpen))
+        if (puzzle->progress < 1.0f)
         {
-            {
-                auto text = to_string(test_result1);
-                ImGui::InputText("Test result##test1", (char*)text.c_str(), text.size() + 1);
-                ImGui::Indent();
-                ImGui::Text("Took %s", duration_to_string(test1_duration).c_str());
-                ImGui::Unindent();
-            }
-            {
-                auto text = to_string(result1);
-                ImGui::InputText("Result##ret1", (char*)text.c_str(), text.size() + 1);
-                ImGui::Indent();
-                ImGui::Text("Took %s", duration_to_string(part1_duration).c_str());
-                ImGui::Unindent();
-            }
+            ImGui::Text("%s:", puzzle->name.c_str());
+            ImGui::ProgressBar(puzzle->progress);
         }
-
-        if (ImGui::CollapsingHeader("Part 2", ImGuiTreeNodeFlags_DefaultOpen))
+        else
         {
-            {
-                auto text = to_string(test_result2);
-                ImGui::InputText("Test result##test2", (char*)text.c_str(), text.size() + 1);
-                ImGui::Indent();
-                ImGui::Text("Took %s", duration_to_string(test2_duration).c_str());
-                ImGui::Unindent();
-            }
-            {
-                auto text = to_string(result2);
-                ImGui::InputText("Result##ret2", (char*)text.c_str(), text.size() + 1);
-                ImGui::Indent();
-                ImGui::Text("Took %s", duration_to_string(part2_duration).c_str());
-                ImGui::Unindent();
-            }
+            auto text = to_string(puzzle->result);
+            ImGui::InputText((puzzle->name + " result").c_str(), (char*)text.c_str(), text.size() + 1);
+            ImGui::Indent();
+            ImGui::Text("Took %s", duration_to_string(puzzle->duration).c_str());
+            ImGui::Unindent();
         }
     }
 
